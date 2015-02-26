@@ -1,0 +1,176 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jan 18 10:21:42 2015
+
+@author: Weizhi
+"""
+
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jan 18 10:20:32 2015
+
+@author: Weizhi
+"""
+
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 17 19:20:25 2015
+
+@author: Weizhi
+"""
+from datetime import datetime
+from os import listdir
+import pandas as pd
+import pylab as plt
+import random
+start = datetime.now()
+dirPath = 'C:/Users/Weizhi/github/Kaggle/driver system/drivers/drivers/'
+driverName = listdir('C:/Users/Weizhi/github/Kaggle/driver system/drivers/drivers/')
+
+outputFinalOne = []
+outputFinalZero = []
+#%% path
+for indexOne in range(len(driverName)/2+500,len(driverName)/2+1000):
+    if indexOne%100 ==0:
+        print 'the number is going %d' % indexOne
+        print('Done, elapsed time: %s' % str(datetime.now() - start))  
+    driverOne = dirPath + driverName[indexOne]
+    fileOne = listdir(driverOne)
+#    a = pd.read_csv(driverOne + '/'+fileOne[90])
+    
+#    plt.figure()
+#    plt.plot(a.iloc[:,0],a.iloc[:,1])
+    
+    feature = {}
+    timeLength = []
+    speedChange = []
+    maxSpeedMean = []
+    minSpeedMeand = []
+    xMax = []
+    yMax = []
+    for i in range(len(fileOne)):
+        data = pd.read_csv(driverOne + '/'+fileOne[i])
+        # time features
+        timeLength.append(len(data)/60.0)
+        
+        # get the speed difference in 5 seconds:
+        meanData = []
+        for j in range(5,len(data),5):
+            
+            meanData.append(sum(data[j:j+5].mean()-data[j-5:j].mean())/5.)
+        # get the top five mean of speed, five minimum values in this one case
+        meanData.sort()
+        minSpeedMeand.append(sum(meanData[0:int(len(meanData)*0.05)])/len(meanData[0:int(len(meanData)*0.05)]))
+        maxSpeedMean.append(sum(meanData[int(len(meanData)*0.95):])/len(meanData[int(len(meanData)*0.95):]))
+            
+        # get the xMax, yMax distance
+        xMax.append(max(abs(data['x'].max()),abs(data['x'].min())))
+        yMax.append(max(abs(data['y'].max()),abs(data['y'].min())))
+    feature['time'] = timeLength
+    feature['maxSpeed'] = maxSpeedMean
+    feature['minSpeed'] = minSpeedMeand
+    feature['xMax'] = xMax     
+    feature['yMax'] = yMax
+    
+    # get the window size
+    featureData = pd.DataFrame.from_dict(feature)
+    centroid = featureData.mean()
+    distance = featureData.std()
+    
+    windowLeft = centroid - 0.2*distance
+    windowRight = centroid + 0.2*distance
+    
+    good = []
+    label = []
+    noise = []
+    test = []
+    for index in range(len(featureData)):
+        currData = featureData.loc[index]
+        count = 0
+        for i in range(len(currData)):
+            if windowLeft[i]<=currData[i] <=windowRight[i]:
+                count +=1
+        if count>=4:
+            good.append(index)
+            label.append(1)
+        elif count <=0:
+            noise.append(index)
+            label.append(0)
+        else:
+            test.append(index)
+            label.append(0.5)
+    if len(good) ==0:
+        good = random.sample(range(len(featureData)),  30) 
+    if len(noise) ==0:
+        indexNoise = random.sample(range(len(featureData)),  30) 
+        noise = []
+        for itemRemove in indexNoise:
+            if itemRemove not in good:
+                noise.append(itemRemove)
+        if len(noise) ==0:
+            noise = indexNoise
+            
+    print 'the length of good is %d' % len(good)
+    print 'the length of noise is %d' % len(noise)
+    # random select number from the training data:
+    import random
+    if (len(good)>10):
+        good = random.sample(good,int(len(good)*0.5))
+    else:
+        good = good
+        
+    if (len(noise)>6):
+        noise = random.sample(noise,int(len(noise)*0.5))
+    else:
+        noise = noise            
+        #%% come to classifcation:
+    featureMatrix = featureData.loc[good + noise]
+    labelMatrix = [1]*len(good) + [0]*len(noise)
+    
+    featureTest = featureData.loc[test]
+    from sklearn import svm
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.neighbors import KNeighborsClassifier
+    clf= KNeighborsClassifier(n_neighbors=3,weights='distance',algorithm ='kd_tree' )
+#    clf = svm.SVC(probability=True,random_state =41)
+#    clf = GaussianNB();
+    clf.fit(featureMatrix,labelMatrix)  
+    # proba 
+#    probalOne = []
+#    probalZero = []
+    pro = clf.predict_proba(featureData)
+
+#    probalOne +=list(pro[:,1])
+#    probalZero += list(pro[:,0])
+    outputFinalOne += list(pro[:,1])
+    outputFinalZero += list(pro[:,0])
+    
+print('Done, elapsed time: %s' % str(datetime.now() - start))   
+
+
+submission = pd.read_csv('C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission4.csv')
+submission['prob'].loc[(len(driverName)/2+500)*200:(len(driverName)/2+1000)*200-1] = outputFinalOne
+#
+submission.to_csv('C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission5.csv', index = False)
+#  
+# get the index training data and lable to 1:
+# in 3*sigma'C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission.csv'
+
+#with open('C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission.csv', 'w') as outfile:
+##    testFeatures[ID] = x
+#    outfile.write('id,click\n')
+#    for ID, x in data(test):       
+#
+#        for item in features:
+#            x.append(x[item])
+#        for k in K:
+#            p = predict(x, w[k]) + 0.00005
+#            outfile.write('%s,%s\n' % (ID, str(p)))
+
+#submission = pd.read_csv('C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission.csv')
+#submission['prob'].loc[:len(outputFinalOne)-1] = outputFinalOne
+#
+#submission.to_csv('C:/Users/Weizhi/github/Kaggle/driver system/sampleSubmission.csv (2)/sampleSubmission1.csv', index = False)
+#
+
+
