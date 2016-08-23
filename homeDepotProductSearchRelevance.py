@@ -198,8 +198,12 @@ param = {"objective" : "multi:softprob",
 "colsample_bytree" : .8}
 
 xgb_model = xg.XGBClassifier(learning_rate=0.1, n_estimators=100, silent=True, objective="multi:softprob",
-                             nthread=-1, max_delta_step=0, subsample=.9, colsample_bytree=.8,
-                             base_score=0.5, seed=0)
+                 nthread=-1, max_delta_step=0, subsample=.9, colsample_bytree=.8,
+                 base_score=0.5, seed=0)
+
+clfXGB = GridSearchCV(xgb_model,
+                   {'max_depth': [6,8,10,12,14],
+                    'n_estimators': [100,200,250],'gamma':[0.1,0,1],'min_child_weight':[4,6,8]}, verbose=1,cv=10)
 
 
 tfidf = TfidfVectorizer(ngram_range=(1, 1), stop_words='english')
@@ -226,7 +230,10 @@ clf = pipeline.Pipeline([
 param_grid = {'rfr__max_features': [10], 'rfr__max_depth': [20]}
 model = grid_search.GridSearchCV(estimator = clf, param_grid = param_grid, n_jobs = -1, cv = 2, verbose = 20, scoring=RMSE)
 model.fit(X_train, y_train)
-xgb.fit(X.values,yy.values)
+
+XGBmodel = grid_search.GridSearchCV(estimator = clfXGB, param_grid = param_grid, n_jobs = -1, cv = 2, verbose = 20, scoring=RMSE)
+
+XGBmodel.fit(X_train,y_train)
 
 print("Best parameters found by grid search:")
 print(model.best_params_)
